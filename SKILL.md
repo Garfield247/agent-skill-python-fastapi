@@ -258,3 +258,45 @@ async def get_my_profile(
 - **现象**：客户端提示 `422 Unprocessable Entity` 但前端未能明确知道哪个字段出错；
 - **排查手段**：
   在全局 `validation_exception_handler` 中打印 `exc.errors()` 结构，定位具体的定位路径（`loc`）与校验类型（`type`）。
+
+---
+
+# 7. 现代 Web API 架构进阶：Lifespan 治理与流式响应 (Lifespan & SSE Standards)
+
+### 7.1 现代 Lifespan 生命周期全面取代 On-Event
+全面淘汰已过时的 `@app.on_event("startup")`，统一采用新版基于 `@asynccontextmanager` 的标准生命周期管理器：
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+import httpx
+from core.database import init_db_pool, close_db_pool
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 【启动阶段】初始化长连接池、连接 Redis、预热缓存
+    http_client = httpx.AsyncClient(timeout=15.0)
+    app.state.http_client = http_client
+    await init_db_pool()
+    yield
+    # 【优雅停机阶段】释放连接池、关闭后台异步队列
+    await http_client.aclose()
+    await close_db_pool()
+
+app = FastAPI(lifespan=lifespan)
+```
+
+### 7.2 流式响应与 SSE (Server-Sent Events) 标准
+针对大模型输出、长耗时报表等场景，统一规范流式推送与背压控制：
+```python
+from fastapi.responses import StreamingResponse
+import asyncio
+
+async def event_generator():
+    for item in fetch_large_stream():
+        yield f"data: {json.dumps(item)}\n\n"
+        await asyncio.sleep(0.01) # 适时让出事件循环，保障系统响应性
+
+@router.get("/stream/events")
+async def stream_events():
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+```

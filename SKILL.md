@@ -7,22 +7,32 @@ description: >-
   依赖注入 (Annotated[..., Depends])、环境变量强绑定 (pydantic-settings) 及异步数据库 Session 生命周期管理。
 ---
 
-# Python 3.10+ & FastAPI 异步高并发 Web 开发规范技能 (FastAPI Mastery Skill)
+# FastAPI 现代异步高并发 Web 开发规范技能 (FastAPI Mastery Skill)
 
 ## 概述 (Overview)
 
-本技能定义了研发工程师与 AI 编码助手在基于 **Python 3.10+** 与 **FastAPI** 框架构建高性能、高可用、类型安全的异步 Web API 服务时的通用架构分层标准与工程红线。
-
-### 核心设计原则
-
-1. **Async/Await 防阻塞黄金法则**：深刻理解单线程事件循环（Event Loop）与线程池调度的本质区别，坚决禁止在 `async def` 中调用同步阻塞 I/O 或执行 CPU 密集型长耗时计算。
-2. **统一响应与精确异常拦截体系**：全局统一外层包装 `{"code": 0, "msg": "ok", "data": ...}`，通过全局 `exception_handler` 自定义业务异常，**坚决杜绝向前端直接抛出笼统的 HTTP 500**。
-3. **强类型安全与 Pydantic v2 标准**：强依赖 Python 3.10+ 现代类型提示，统一使用 Pydantic v2 `model_config = ConfigDict(...)` 声明，环境变量读取强依赖 `pydantic-settings`。
-4. **分层清晰与依赖注入 (Dependency Injection)**：Router 控制层 $\to$ Service 业务编排层 $\to$ Repository / ORM 持有层，统一使用 `Annotated[..., Depends(...)]` 进行生命周期管理与上下文解耦。
+本技能定义了研发工程师与 AI 编码助手在基于 **FastAPI** 框架构建高性能、高可用、类型安全的异步 Web API 服务时的通用架构分层标准与工程红线。**以现代技术栈（Python 3.10+ & Pydantic v2）为演进基调，同时具备对存量历史项目（Python 3.8/3.9 & Pydantic v1）的智能优雅降级兼容机制**。
 
 ---
 
-# 1. Async/Await 核心红线与防阻塞黄金法则 (Core Concurrency Rules)
+# 1. 架构基调与版本自适应决策 (Version Baseline & Adaptive Matrix)
+
+### 1.1 演进基调 (Modern Baseline)
+- **推荐现代技术栈**：Python 3.10+、FastAPI 0.100+、Pydantic v2、SQLAlchemy 2.0 Async。
+
+### 1.2 Pydantic 与环境自适应决策表
+在开发前优先检查项目依赖锁定文件（`requirements.txt`、`poetry.lock` 或 `pyproject.toml`）：
+
+| 模块 / 特性 | 推荐基调 (Pydantic v2) | 历史项目自适应兼容 (Pydantic v1) |
+| :--- | :--- | :--- |
+| **模型配置声明** | `model_config = ConfigDict(extra="forbid")` | `class Config:`<br/>`    extra = "forbid"`<br/>`    orm_mode = True` |
+| **自定义字段校验** | `@field_validator("field_name")` | `@validator("field_name")` |
+| **模型序列化导出** | `model.model_dump()` / `model.model_dump_json()` | `model.dict()` / `model.json()` |
+| **生命周期管理** | `@asynccontextmanager async def lifespan(app: FastAPI)` | 若 FastAPI < 0.93：降级使用 `@app.on_event("startup")` |
+
+---
+
+# 2. Async/Await 核心红线与防阻塞黄金法则 (Core Concurrency Rules)
 
 FastAPI 在 `async def`（主事件循环单线程）与普通 `def`（后台线程池 AnyIO Worker）之间的调度机制存在本质差异。**严禁滥用 `async` 导致事件循环卡死**：
 

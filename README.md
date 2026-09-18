@@ -13,13 +13,13 @@
 
 ### 方式 1: 安装至 Antigravity / Gemini 全局技能库
 ```bash
-git clone git@github.com:Garfield247/python-fastapi.git ~/.gemini/config/skills/python-fastapi
+git clone git@github.com:Garfield247/agent-skill-python-fastapi.git ~/.gemini/config/skills/python-fastapi
 ```
 
 ### 方式 2: 在任意项目中作为本地工作区技能引入
 ```bash
 mkdir -p .agents/skills
-git clone git@github.com:Garfield247/python-fastapi.git .agents/skills/python-fastapi
+git clone git@github.com:Garfield247/agent-skill-python-fastapi.git .agents/skills/python-fastapi
 ```
 
 ## 📄 开源协议 (License)

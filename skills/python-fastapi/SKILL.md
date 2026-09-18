@@ -231,3 +231,30 @@ async def get_my_profile(
 - [ ] 是否已全部采用 Python 3.10+ 类型语法（`str | None`、`list[...]`）？
 - [ ] Pydantic 模型是否使用 `model_config = ConfigDict(...)` 标准规范？
 - [ ] 环境变量与敏感配置是否全部通过 `pydantic-settings` 安全接管？
+
+---
+
+# 6. Bug 分析、排查与调试武器库 (Troubleshooting & Debugging Guide)
+
+在排查 FastAPI 异步 Web 服务 Bug 时，必须严格遵循 `systematic-debugging` 根因分析 SOP，并使用以下专属工具诊断：
+
+### 6.1 事件循环防阻塞检测 (Event Loop Blocking Detector)
+- **开启 Asyncio 调试模式**：
+  当接口吞吐量骤降或出现大量并发超时（Client Timeout）时，极大可能是某处调用了同步阻塞代码卡死了主线程事件循环。
+  通过在启动命令前注入环境变量开启阻塞检测（默认告警阈值 100ms）：
+  ```bash
+  PYTHONASYNCIODEBUG=1 uvicorn main:app --reload
+  ```
+  终端将自动打印导致事件循环挂起的函数调用堆栈及阻塞耗时：
+  `Executing <Handle ...> took 1.250 seconds` -> 直接定位违规同步阻塞函数！
+
+### 6.2 异步数据库连接池泄漏与长事务排查
+- **现象**：高并发下服务报错 `Timeout context manager should be used with async with` 或 `QueuePool limit of size 5 overflow 10 reached, connection timed out`；
+- **排查手段**：
+  1. 检查是否存在只开启事务但未在 `finally` 块中执行 `await session.close()` 的遗漏；
+  2. 严格使用 `AsyncSession` 上下文生成器依赖注入，严禁在全局生命周期中共享单个 Session 实例。
+
+### 6.3 Pydantic 入参校验失败与 422 诊断
+- **现象**：客户端提示 `422 Unprocessable Entity` 但前端未能明确知道哪个字段出错；
+- **排查手段**：
+  在全局 `validation_exception_handler` 中打印 `exc.errors()` 结构，定位具体的定位路径（`loc`）与校验类型（`type`）。
